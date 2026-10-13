@@ -307,8 +307,193 @@ Les combinaisons autorisées entre `activity_code` et `indicator_code` seront d�
 
 ## Relations et règles d'unicité
 
-À définir avant la mise en place des traitements.
+Les tables sont reliées entre elles à l'aide d'identifiants communs. Ces relations permettent de retrouver l'origine des données et de vérifier leur cohérence.
+
+Une clé primaire (_primary key_) identifie de manière unique un enregistrement dans une table. Une clé étrangère (_foreign key_) fait référence à un enregistrement d'une autre table.
+
+### Relations entre les tables
+
+| Table          | Champ            | Table de référence | Champ référencé  |
+| -------------- | ---------------- | ------------------ | ---------------- |
+| `reports`      | `partner_id`     | `partners`         | `partner_id`     |
+| `submissions`  | `report_id`      | `reports`          | `report_id`      |
+| `observations` | `submission_id`  | `submissions`      | `submission_id`  |
+| `observations` | `area_code`      | `areas`            | `area_code`      |
+| `observations` | `activity_code`  | `activities`       | `activity_code`  |
+| `observations` | `indicator_code` | `indicators`       | `indicator_code` |
+
+Un partenaire peut être associé à plusieurs rapports. Un rapport peut recevoir plusieurs soumissions, et chaque soumission peut contenir plusieurs observations.
+
+Une observation appartient toutefois à une seule soumission.
+
+Le champ `previous_submission_id` de `submissions` fait également référence à `submissions.submission_id`. Lorsqu'il est renseigné, il doit désigner la transmission précédente du même rapport.
+
+### `activity_indicators` — Associations entre activités et indicateurs
+
+La table `activity_indicators` définit les indicateurs autorisés pour chaque catégorie d'activité.
+
+Elle permet de représenter une relation plusieurs-à-plusieurs : une activité peut utiliser plusieurs indicateurs, et un indicateur peut être utilisé pour plusieurs activités.
+
+| Champ            | Type  | Obligatoire | Description                                        |
+| ---------------- | ----- | ----------- | -------------------------------------------------- |
+| `activity_code`  | Texte | Oui         | Code de l'activité concernée.                      |
+| `indicator_code` | Texte | Oui         | Code de l'indicateur autorisé pour cette activité. |
+
+#### Exemple de données
+
+| activity_code             | indicator_code       |
+| ------------------------- | -------------------- |
+| `ACT_COMMUNITY_AWARENESS` | `IND_SESSIONS_HELD`  |
+| `ACT_COMMUNITY_AWARENESS` | `IND_PARTICIPATIONS` |
+| `ACT_GROUP_PSYCHOSOCIAL`  | `IND_SESSIONS_HELD`  |
+| `ACT_GROUP_PSYCHOSOCIAL`  | `IND_PARTICIPATIONS` |
+
+#### Règles de validation
+
+- Le champ `activity_code` doit correspondre à une activité existante.
+- Le champ `indicator_code` doit correspondre à un indicateur existant.
+- Une même association entre activité et indicateur ne peut apparaître qu'une seule fois.
+- Chaque observation doit utiliser une combinaison d'activité et d'indicateur présente dans cette table.
+
+Le couple `activity_code` et `indicator_code` constitue la clé primaire composée (_composite primary key_) de cette table.
+
+### Contraintes d'unicité
+
+En plus des identifiants uniques définis pour chaque table, certaines combinaisons de champs ne doivent pas être répétées.
+
+| Table                 | Combinaison unique                                                 |
+| --------------------- | ------------------------------------------------------------------ |
+| `reports`             | `partner_id` + `reporting_period`                                  |
+| `submissions`         | `report_id` + `revision_no`                                        |
+| `observations`        | `submission_id` + `area_code` + `activity_code` + `indicator_code` |
+| `activity_indicators` | `activity_code` + `indicator_code`                                 |
+
+Ces contraintes répondent à des besoins différents.
+
+Dans `reports`, elles empêchent de créer deux rapports logiques pour le même partenaire et le même mois.
+
+Dans `submissions`, elles empêchent d'attribuer le même numéro de révision à deux transmissions d'un même rapport.
+
+Dans `observations`, elles empêchent de déclarer plusieurs valeurs pour un même indicateur, une même activité et une même zone au sein d'une soumission.
+
+Enfin, dans `activity_indicators`, elles évitent d'enregistrer plusieurs fois la même association.
+
+Les différentes révisions d'un rapport restent conservées. Lors de la consolidation, les observations doivent provenir de la transmission approuvée applicable à chaque rapport, afin d'éviter le double comptage.
 
 ## Contrôles de qualité
 
-À définir en fonction des champs, des indicateurs et des règles de reporting retenus.
+Les contrôles de qualité servent à repérer les erreurs et les incohérences dans les rapports transmis par les partenaires.
+
+Ils interviennent avant la consolidation des résultats. Leur objectif est de signaler les problèmes rencontrés, de faciliter leur vérification et d'éviter que des données invalides soient utilisées dans les analyses.
+
+Les données reçues seront conservées afin de pouvoir retrouver les informations d'origine et comprendre les corrections apportées.
+
+### Niveaux de contrôle
+
+Les anomalies seront classées selon trois niveaux :
+
+| Niveau    | Signification                                          | Traitement                               |
+| --------- | ------------------------------------------------------ | ---------------------------------------- |
+| `ERROR`   | Erreur empêchant la validation des données concernées. | Correction nécessaire avant approbation. |
+| `WARNING` | Situation inhabituelle ou potentiellement incohérente. | Vérification et décision documentée.     |
+| `INFO`    | Information utile au suivi des traitements.            | Aucune correction nécessaire par défaut. |
+
+Une alerte ne signifie pas systématiquement que la valeur déclarée est fausse. Certaines situations nécessitent une vérification auprès du partenaire.
+
+### Vérification de la structure
+
+Le système devra vérifier que les données respectent la structure définie dans le dictionnaire.
+
+Les contrôles porteront notamment sur :
+
+- La présence des champs obligatoires.
+- Le respect des types de données attendus.
+- La validité des dates et des périodes de reporting.
+- La présence et l'unicité des identifiants.
+- La cohérence des références entre les tables.
+
+Une valeur manquante ne sera jamais remplacée automatiquement par zéro. Lorsqu'un champ obligatoire est absent, l'anomalie devra être signalée avant toute utilisation de l'enregistrement concerné.
+
+### Vérification des valeurs
+
+Les contrôles métier permettront notamment de détecter :
+
+- Les valeurs négatives pour les indicateurs de dénombrement.
+- Les nombres décimaux lorsque l'indicateur exige un entier.
+- Les codes de partenaires, de zones, d'activités ou d'indicateurs inconnus.
+- Les associations non autorisées entre activités et indicateurs.
+- Les observations répétées pour une même combinaison de soumission, zone, activité et indicateur.
+
+Les valeurs égales à zéro resteront autorisées lorsqu'elles correspondent à des résultats réellement déclarés.
+
+Une valeur particulièrement élevée pourra déclencher un avertissement, sans être considérée automatiquement comme une erreur.
+
+### Détection des doublons
+
+Les doublons seront recherchés à plusieurs niveaux.
+
+**Dans les observations :** deux lignes d'une même soumission ne doivent pas déclarer séparément une valeur pour la même combinaison de zone, d'activité et d'indicateur.
+
+**Dans les soumissions :** deux transmissions ne doivent pas partager le même identifiant ni le même numéro de révision pour un rapport donné.
+
+**Dans les rapports :** un partenaire ne doit pas posséder plusieurs rapports logiques pour la même période mensuelle.
+
+Les doublons détectés seront signalés. Le système ne supprimera pas silencieusement les enregistrements concernés.
+
+### Vérification des corrections
+
+Lorsqu'un partenaire transmet une correction, le système devra vérifier que :
+
+- Le rapport concerné existe.
+- Le numéro de révision est valide et unique pour ce rapport.
+- La transmission précédente existe et appartient au même rapport.
+- La chaîne des révisions est cohérente.
+- Les nouvelles valeurs sont soumises aux mêmes contrôles que celles du rapport initial.
+
+La réception d'une correction ne signifie pas qu'elle est automatiquement approuvée.
+
+### Validation des soumissions
+
+Les contrôles automatiques et l'approbation d'une soumission sont deux étapes distinctes.
+
+Une soumission présentant des erreurs bloquantes ne pourra pas être approuvée tant que ces erreurs ne sont pas résolues.
+
+Les avertissements devront être examinés. La décision de les accepter ou de demander une correction devra pouvoir être justifiée.
+
+Une soumission techniquement valide ne sera pas considérée comme approuvée sans décision de validation.
+
+### Sélection des données à consolider
+
+Les résultats consolidés seront calculés uniquement à partir des soumissions approuvées.
+
+Lorsqu'un rapport possède plusieurs révisions approuvées, la révision approuvée portant le numéro le plus élevé sera retenue.
+
+Les observations des anciennes révisions resteront conservées, mais elles ne seront pas additionnées à celles de la révision retenue.
+
+Si une correction est encore en attente d'approbation, la dernière révision approuvée pourra rester utilisée, avec un signalement indiquant qu'une correction est en cours d'examen.
+
+### Vérification des agrégations
+
+Avant de produire un total, le système devra vérifier que les observations sélectionnées :
+
+- Proviennent des soumissions approuvées et applicables.
+- Utilisent des indicateurs compatibles avec les activités concernées.
+- Respectent les unités de mesure définies.
+- Ne correspondent pas à des résultats comptés plusieurs fois.
+- Peuvent être regroupées selon les règles d'agrégation des indicateurs.
+
+Les participations enregistrées ne seront pas présentées comme un nombre de bénéficiaires uniques.
+
+### Rapport de contrôle
+
+Les contrôles produiront un rapport permettant de retrouver les anomalies détectées.
+
+Pour chaque anomalie, nous chercherons à conserver au minimum :
+
+- Son niveau de gravité.
+- Le contrôle qui l'a détectée.
+- L'identifiant de l'enregistrement concerné.
+- Une description compréhensible du problème.
+- Le résultat de son examen ou de sa correction, lorsqu'il est disponible.
+
+Ce rapport aidera à vérifier les données avant leur consolidation et à expliquer les décisions prises pendant leur traitement.
