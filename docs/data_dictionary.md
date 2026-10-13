@@ -133,6 +133,178 @@ Le nombre de participations ne doit pas être interprété automatiquement comme
 
 Les unités de mesure seront conservées dans le référentiel des indicateurs plutôt que répétées dans chaque observation.
 
+## Référentiels
+
+Les référentiels regroupent les codes et les informations de référence utilisés dans les rapports. Ils permettent notamment de vérifier qu'une valeur déclarée correspond à un partenaire, une zone, une activité ou un indicateur connu du système.
+
+### `partners` — Partenaires
+
+La table `partners` contient les organisations partenaires dont les activités sont suivies dans le projet.
+
+Chaque partenaire possède un identifiant stable, utilisé dans les rapports, et un nom permettant de l'identifier plus facilement lors des analyses.
+
+| Champ          | Type  | Obligatoire | Description                       |
+| -------------- | ----- | ----------- | --------------------------------- |
+| `partner_id`   | Texte | Oui         | Identifiant unique du partenaire. |
+| `partner_name` | Texte | Oui         | Nom du partenaire.                |
+
+#### Exemple de données
+
+| partner_id    | partner_name              |
+| ------------- | ------------------------- |
+| `PARTNER_001` | Organisation partenaire A |
+| `PARTNER_002` | Organisation partenaire B |
+| `PARTNER_003` | Organisation partenaire C |
+
+Ces organisations sont fictives et servent uniquement aux exercices et aux tests.
+
+#### Règles de validation
+
+- Chaque partenaire possède un `partner_id` unique et non vide.
+- Le nom du partenaire ne doit pas être vide.
+- Un identifiant ne doit pas être réattribué à un autre partenaire.
+- Le champ `partner_id` utilisé dans `reports` doit correspondre à un partenaire enregistré dans ce référentiel.
+
+### `areas` — Zones géographiques
+
+La table `areas` contient les zones géographiques utilisées pour localiser les activités déclarées par les partenaires.
+
+Chaque zone possède un code unique et un nom. Un champ supplémentaire permet de préciser le type de zone auquel elle correspond.
+
+| Champ       | Type  | Obligatoire | Description                          |
+| ----------- | ----- | ----------- | ------------------------------------ |
+| `area_code` | Texte | Oui         | Code unique de la zone géographique. |
+| `area_name` | Texte | Oui         | Nom de la zone géographique.         |
+| `area_type` | Texte | Oui         | Type de zone géographique.           |
+
+#### Exemple de données
+
+| area_code | area_name      | area_type        |
+| --------- | -------------- | ---------------- |
+| `ZONE_A`  | Zone fictive A | `SIMULATED_ZONE` |
+| `ZONE_B`  | Zone fictive B | `SIMULATED_ZONE` |
+| `ZONE_C`  | Zone fictive C | `SIMULATED_ZONE` |
+
+Ces zones sont entièrement fictives et ne correspondent pas à des circonscriptions administratives réelles du Burkina Faso.
+
+La valeur `SIMULATED_ZONE` permet de les identifier explicitement comme des zones créées pour les exercices et les tests.
+
+#### Règles de validation
+
+- Chaque zone possède un `area_code` unique et non vide.
+- Le nom et le type de la zone doivent être renseignés.
+- Le champ `area_type` doit correspondre à un type de zone autorisé.
+- Un code géographique ne doit pas être réattribué à une autre zone.
+- Le champ `area_code` utilisé dans `observations` doit correspondre à une zone enregistrée dans ce référentiel.
+
+#### Références géographiques
+
+L'utilisation de zones administratives réelles nécessitera un référentiel géographique fiable, accompagné de sa source et de sa date de référence.
+
+Cela permettra de tenir compte des éventuelles modifications du découpage administratif et d'éviter de mélanger des données géographiques qui ne correspondent pas aux mêmes limites territoriales.
+
+### `activities` — Activités
+
+La table `activities` répertorie les catégories d'activités suivies dans les rapports des partenaires.
+
+Chaque activité possède un code unique, un nom et une description. Ces informations permettent d'utiliser les mêmes catégories dans l'ensemble des rapports et d'éviter les différences de désignation entre partenaires.
+
+| Champ                  | Type  | Obligatoire | Description                              |
+| ---------------------- | ----- | ----------- | ---------------------------------------- |
+| `activity_code`        | Texte | Oui         | Code unique de l'activité.               |
+| `activity_name`        | Texte | Oui         | Nom de l'activité.                       |
+| `activity_description` | Texte | Oui         | Description du type d'activité concerné. |
+
+#### Exemple de données
+
+| activity_code             | activity_name                  | activity_description                                                                                  |
+| ------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `ACT_COMMUNITY_AWARENESS` | Sensibilisation communautaire  | Séances collectives consacrées à l'information et à la sensibilisation sur la protection de l'enfant. |
+| `ACT_GROUP_PSYCHOSOCIAL`  | Soutien psychosocial collectif | Séances collectives de soutien psychosocial déclarées dans le cadre du scénario fictif.               |
+
+Ces catégories servent à construire un jeu de données d'exercice. Elles ne constituent pas une classification officielle des activités de protection de l'enfant.
+
+#### Règles de validation
+
+- Chaque activité possède un `activity_code` unique et non vide.
+- Le nom et la description de l'activité doivent être renseignés.
+- Un code ne doit pas être réattribué à une autre activité.
+- Le champ `activity_code` utilisé dans `observations` doit correspondre à une activité enregistrée dans ce référentiel.
+- Les indicateurs associés à une activité doivent être compatibles avec sa définition.
+
+#### Relation avec les indicateurs
+
+Une même activité peut être suivie à l'aide de plusieurs indicateurs.
+
+Par exemple, une activité de sensibilisation communautaire peut être mesurée par le nombre de séances réalisées et le nombre de participations enregistrées.
+
+Ces deux résultats sont distincts et doivent être déclarés séparément.
+
+La liste des indicateurs autorisés et leurs unités de mesure seront définies dans le référentiel `indicators`.
+
+### `indicators` — Indicateurs
+
+La table `indicators` définit les indicateurs utilisés pour mesurer les résultats des activités déclarées par les partenaires.
+
+Chaque indicateur possède un code unique, un nom, une définition et une unité de mesure. Une règle d'agrégation précise également comment ses valeurs peuvent être regroupées lors des analyses.
+
+| Champ                  | Type  | Obligatoire | Description                                                  |
+| ---------------------- | ----- | ----------- | ------------------------------------------------------------ |
+| `indicator_code`       | Texte | Oui         | Code unique de l'indicateur.                                 |
+| `indicator_name`       | Texte | Oui         | Nom de l'indicateur.                                         |
+| `indicator_definition` | Texte | Oui         | Définition de ce qui est mesuré et comptabilisé.             |
+| `measure_unit`         | Texte | Oui         | Unité dans laquelle la valeur est exprimée.                  |
+| `aggregation_method`   | Texte | Oui         | Méthode utilisée pour regrouper les valeurs de l'indicateur. |
+
+#### Exemple de données
+
+| indicator_code       | indicator_name              | measure_unit    | aggregation_method |
+| -------------------- | --------------------------- | --------------- | ------------------ |
+| `IND_SESSIONS_HELD`  | Séances réalisées           | `SESSION`       | `SUM`              |
+| `IND_PARTICIPATIONS` | Participations enregistrées | `PARTICIPATION` | `SUM`              |
+
+Ces indicateurs sont définis pour les besoins du projet et ne constituent pas un référentiel officiel d'indicateurs humanitaires.
+
+#### Définition des indicateurs
+
+**Séances réalisées (`IND_SESSIONS_HELD`)**
+
+Cet indicateur mesure le nombre de séances effectivement organisées pendant la période de reporting, dans le cadre d'une activité donnée et dans une zone géographique déterminée.
+
+Les séances annulées ou simplement prévues ne sont pas comptabilisées.
+
+**Participations enregistrées (`IND_PARTICIPATIONS`)**
+
+Cet indicateur mesure le nombre total de participations déclarées aux séances réalisées.
+
+Une personne ayant participé à plusieurs séances peut être comptée plusieurs fois. L'indicateur ne mesure donc pas le nombre de personnes distinctes ayant bénéficié d'une activité.
+
+#### Règles de validation
+
+- Chaque indicateur possède un `indicator_code` unique et non vide.
+- Le nom, la définition et l'unité de mesure doivent être renseignés.
+- Un code ne doit pas être réattribué à un indicateur ayant une autre signification.
+- Le champ `indicator_code` utilisé dans `observations` doit correspondre à un indicateur enregistré dans ce référentiel.
+- Les valeurs des indicateurs définis ici doivent être des entiers non négatifs.
+- La méthode d'agrégation doit appartenir aux méthodes autorisées.
+- La méthode `SUM` correspond à l'addition des valeurs, lorsque les données concernées peuvent être additionnées sans double comptage.
+
+#### Agrégation et interprétation des résultats
+
+Les deux indicateurs utilisent la méthode `SUM`, mais leur addition doit respecter certaines conditions.
+
+Avant de calculer un total, il faut notamment vérifier que les observations proviennent des soumissions approuvées, qu'elles ne sont pas des doublons et que les résultats regroupés sont compatibles.
+
+Un total de participations ne doit pas être présenté comme un nombre de bénéficiaires uniques.
+
+Les règles d'agrégation pourront être complétées lorsque nous définirons les traitements et les contrôles de qualité du système.
+
+#### Relation avec les activités
+
+Une activité peut être associée à plusieurs indicateurs, et un même indicateur peut être utilisé pour plusieurs activités.
+
+Les combinaisons autorisées entre `activity_code` et `indicator_code` seront définies séparément afin de pouvoir vérifier la cohérence des observations.
+
 ## Relations et règles d'unicité
 
 À définir avant la mise en place des traitements.
