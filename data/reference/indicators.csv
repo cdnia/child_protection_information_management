@@ -1,0 +1,3 @@
+indicator_code,indicator_name,indicator_definition,measure_unit,aggregation_method
+IND_SESSIONS_HELD,Séances réalisées,Nombre de séances effectivement organisées pendant la période de reporting. Les séances annulées ou simplement prévues sont exclues.,SESSION,SUM
+IND_PARTICIPATIONS,Participations enregistrées,Nombre total de participations déclarées aux séances réalisées. Une personne peut être comptée plusieurs fois.,PARTICIPATION,SUM
