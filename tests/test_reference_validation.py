@@ -163,3 +163,31 @@ def test_rejects_unsupported_aggregation_method() -> None:
         references,
         "indicators",
     )
+
+
+def test_rejects_incorrect_unit_for_sessions() -> None:
+    """Rejette une unité incompatible avec les séances."""
+
+    references = make_references()
+    references["indicators"][0]["indicator_code"] = "IND_SESSIONS_HELD"
+    references["indicators"][0]["measure_unit"] = "PARTICIPATION"
+    references["activity_indicators"][0]["indicator_code"] = "IND_SESSIONS_HELD"
+
+    assert "INVALID_INDICATOR_UNIT" in issue_codes(
+        references,
+        "indicators",
+    )
+
+
+def test_rejects_incorrect_unit_for_participations() -> None:
+    """Rejette une unité incompatible avec les participations."""
+
+    references = make_references()
+    references["indicators"][0]["indicator_code"] = "IND_PARTICIPATIONS"
+    references["indicators"][0]["measure_unit"] = "SESSION"
+    references["activity_indicators"][0]["indicator_code"] = "IND_PARTICIPATIONS"
+
+    assert "INVALID_INDICATOR_UNIT" in issue_codes(
+        references,
+        "indicators",
+    )

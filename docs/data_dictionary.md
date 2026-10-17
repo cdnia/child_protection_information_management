@@ -297,6 +297,19 @@ Une personne ayant participé à plusieurs séances peut être comptée plusieur
 - La méthode d'agrégation doit appartenir aux méthodes autorisées.
 - La méthode `SUM` correspond à l'addition des valeurs, lorsque les données concernées peuvent être additionnées sans double comptage.
 
+#### Correspondance entre indicateurs et unités de mesure
+
+Dans la version actuelle du prototype, les unités des deux indicateurs définis sont fixées comme suit :
+
+- `IND_SESSIONS_HELD` utilise exclusivement l'unité `SESSION`.
+- `IND_PARTICIPATIONS` utilise exclusivement l'unité `PARTICIPATION`.
+
+La validation des référentiels vérifie cette correspondance afin d'éviter qu'un indicateur soit associé à une unité incompatible avec sa définition.
+
+Les unités sont conservées dans `indicators.csv` et ne sont pas répétées dans `observations.csv`.
+
+Pour tout nouvel indicateur, sa définition et son unité devront être documentées. Les contrôles de cohérence devront être étendus lorsque de nouveaux indicateurs seront ajoutés.
+
 #### Méthodes d'agrégation autorisées
 
 Dans la version actuelle du prototype, `aggregation_method` accepte uniquement la valeur `SUM`.

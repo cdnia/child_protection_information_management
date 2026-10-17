@@ -865,3 +865,51 @@ def test_invalid_reference_value_blocks_pipeline(
     ):
         assert results[stage].status == "SKIPPED"
         assert results[stage].reason == "Référentiels non valides."
+
+
+@pytest.mark.parametrize(
+    ("indicator_code", "invalid_unit"),
+    [
+        ("IND_SESSIONS_HELD", "PARTICIPATION"),
+        ("IND_PARTICIPATIONS", "SESSION"),
+    ],
+)
+def test_incorrect_indicator_unit_blocks_pipeline(
+    project_root: Path,
+    indicator_code: str,
+    invalid_unit: str,
+) -> None:
+    """Vérifie qu'une unité incompatible bloque les étapes dépendantes."""
+
+    path = project_root / "data/reference/indicators.csv"
+
+    with path.open(newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        columns = reader.fieldnames
+        assert columns is not None
+        rows = list(reader)
+
+    matching_rows = [row for row in rows if row["indicator_code"] == indicator_code]
+    assert len(matching_rows) == 1
+    matching_rows[0]["measure_unit"] = invalid_unit
+
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=columns)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    results = run_validation(project_root)
+
+    assert results["references"].status == "FAIL"
+    assert "INVALID_INDICATOR_UNIT" in {
+        issue.code for issue in results["references"].issues
+    }
+
+    for stage in (
+        "reports",
+        "submissions",
+        "revision_chains",
+        "observations",
+    ):
+        assert results[stage].status == "SKIPPED"
+        assert results[stage].reason == "Référentiels non valides."

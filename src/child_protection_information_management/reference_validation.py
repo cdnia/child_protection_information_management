@@ -31,6 +31,11 @@ REFERENCE_KEYS: dict[str, tuple[str, ...]] = {
 ALLOWED_AREA_TYPES = frozenset({"SIMULATED_ZONE"})
 ALLOWED_AGGREGATION_METHODS = frozenset({"SUM"})
 
+INDICATOR_MEASURE_UNITS: dict[str, str] = {
+    "IND_SESSIONS_HELD": "SESSION",
+    "IND_PARTICIPATIONS": "PARTICIPATION",
+}
+
 
 def validate_reference_tables(
     tables: dict[str, list[dict[str, str]]],
@@ -92,6 +97,27 @@ def validate_reference_tables(
                     )
 
             if name == "indicators":
+                indicator_code = record.get("indicator_code", "")
+                measure_unit = record.get("measure_unit", "")
+                expected_unit = INDICATOR_MEASURE_UNITS.get(indicator_code)
+
+                if (
+                    expected_unit is not None
+                    and measure_unit.strip()
+                    and measure_unit != expected_unit
+                ):
+                    issues[name].append(
+                        ValidationIssue(
+                            record_number,
+                            "measure_unit",
+                            "INVALID_INDICATOR_UNIT",
+                            (
+                                f"Unité incorrecte pour {indicator_code} : "
+                                f"{measure_unit} (attendu : {expected_unit})."
+                            ),
+                        )
+                    )
+
                 aggregation_method = record.get("aggregation_method", "")
 
                 if (
