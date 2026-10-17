@@ -122,6 +122,18 @@ def run_validation(project_root: Path) -> dict[str, StageResult]:
                 "FAIL",
                 issues=tuple(report_issues),
             )
+        elif not reports:
+            results["reports"] = StageResult(
+                "FAIL",
+                issues=(
+                    ValidationIssue(
+                        0,
+                        "",
+                        "EMPTY_REPORTS",
+                        "reports.csv : aucune ligne de données.",
+                    ),
+                ),
+            )
         else:
             results["reports"] = StageResult("PASS")
 
@@ -172,6 +184,18 @@ def run_validation(project_root: Path) -> dict[str, StageResult]:
             results["submissions"] = StageResult(
                 "FAIL",
                 issues=tuple(submission_issues),
+            )
+        elif not submissions:
+            results["submissions"] = StageResult(
+                "FAIL",
+                issues=(
+                    ValidationIssue(
+                        0,
+                        "",
+                        "EMPTY_SUBMISSIONS",
+                        "submissions.csv : aucune ligne de données.",
+                    ),
+                ),
             )
         else:
             results["submissions"] = StageResult("PASS")
@@ -245,6 +269,18 @@ def run_validation(project_root: Path) -> dict[str, StageResult]:
             results["observations"] = StageResult(
                 "FAIL",
                 issues=tuple(observation_issues),
+            )
+        elif not observations:
+            results["observations"] = StageResult(
+                "FAIL",
+                issues=(
+                    ValidationIssue(
+                        0,
+                        "",
+                        "EMPTY_OBSERVATIONS",
+                        "observations.csv : aucune ligne de données.",
+                    ),
+                ),
             )
         else:
             results["observations"] = StageResult("PASS")

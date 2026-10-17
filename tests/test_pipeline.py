@@ -682,3 +682,66 @@ def test_zero_observation_value_is_accepted(
     results = run_validation(project_root)
 
     assert all(result.status == "PASS" for result in results.values())
+
+
+@pytest.mark.parametrize(
+    ("filename", "stage", "expected_code", "blocked_stages", "reason"),
+    [
+        (
+            "reports.csv",
+            "reports",
+            "EMPTY_REPORTS",
+            ("submissions", "revision_chains", "observations"),
+            "Rapports non valides.",
+        ),
+        (
+            "submissions.csv",
+            "submissions",
+            "EMPTY_SUBMISSIONS",
+            ("revision_chains", "observations"),
+            "Soumissions non valides.",
+        ),
+        (
+            "observations.csv",
+            "observations",
+            "EMPTY_OBSERVATIONS",
+            (),
+            "",
+        ),
+    ],
+)
+def test_header_only_transactional_csv_is_rejected(
+    project_root: Path,
+    filename: str,
+    stage: str,
+    expected_code: str,
+    blocked_stages: tuple[str, ...],
+    reason: str,
+) -> None:
+    """Rejette un fichier transactionnel sans enregistrement."""
+
+    path = project_root / "data" / "raw" / filename
+    lines = path.read_text(encoding="utf-8").splitlines()
+
+    assert len(lines) > 1
+    path.write_text(f"{lines[0]}\n", encoding="utf-8")
+
+    results = run_validation(project_root)
+
+    order = (
+        "references",
+        "reports",
+        "submissions",
+        "revision_chains",
+        "observations",
+    )
+
+    for previous_stage in order[: order.index(stage)]:
+        assert results[previous_stage].status == "PASS"
+
+    assert results[stage].status == "FAIL"
+    assert expected_code in {issue.code for issue in results[stage].issues}
+
+    for blocked_stage in blocked_stages:
+        assert results[blocked_stage].status == "SKIPPED"
+        assert results[blocked_stage].reason == reason
