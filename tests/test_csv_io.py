@@ -94,3 +94,57 @@ def test_raises_if_file_missing(tmp_path: Path) -> None:
 
     with pytest.raises(FileNotFoundError):
         read_csv(path, REPORT_COLUMNS)
+
+
+@pytest.mark.parametrize(
+    ("extra_before", "extra_after"),
+    [
+        ("\n", ""),
+        ("", "\n"),
+        ("", "   \n"),
+    ],
+)
+def test_rejects_blank_or_whitespace_only_lines(
+    tmp_path: Path,
+    extra_before: str,
+    extra_after: str,
+) -> None:
+    """Rejette les lignes sans colonnes CSV valides."""
+
+    path = make_file(
+        tmp_path,
+        "report_id,partner_id,reporting_period\n"
+        f"{extra_before}"
+        "RPT_001,PARTNER_001,2025-03\n"
+        f"{extra_after}",
+    )
+
+    with pytest.raises(ValueError, match="colonnes"):
+        read_csv(path, REPORT_COLUMNS)
+
+
+def test_header_only_returns_no_records(tmp_path: Path) -> None:
+    """Laisse à l'orchestrateur le contrôle des données absentes."""
+
+    path = make_file(
+        tmp_path,
+        "report_id,partner_id,reporting_period\n",
+    )
+
+    assert read_csv(path, REPORT_COLUMNS) == []
+
+
+def test_preserves_empty_field_for_business_validation(
+    tmp_path: Path,
+) -> None:
+    """Préserve un champ vide pour que le validateur métier l'examine."""
+
+    path = make_file(
+        tmp_path,
+        "report_id,partner_id,reporting_period\nRPT_001,,2025-03\n",
+    )
+
+    records = read_csv(path, REPORT_COLUMNS)
+
+    assert len(records) == 1
+    assert records[0]["partner_id"] == ""

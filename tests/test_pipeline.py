@@ -745,3 +745,71 @@ def test_header_only_transactional_csv_is_rejected(
     for blocked_stage in blocked_stages:
         assert results[blocked_stage].status == "SKIPPED"
         assert results[blocked_stage].reason == reason
+
+
+@pytest.mark.parametrize("partner_value", ["", "   "])
+def test_missing_partner_is_rejected_by_pipeline(
+    project_root: Path,
+    partner_value: str,
+) -> None:
+    """Rejette un partenaire vide ou constitué d'espaces."""
+
+    path = project_root / "data/raw/reports.csv"
+    content = path.read_text(encoding="utf-8")
+
+    original = "RPT_001,PARTNER_001,2025-03"
+    assert content.count(original) == 1
+
+    path.write_text(
+        content.replace(
+            original,
+            f"RPT_001,{partner_value},2025-03",
+            1,
+        ),
+        encoding="utf-8",
+    )
+
+    results = run_validation(project_root)
+
+    assert results["references"].status == "PASS"
+    assert results["reports"].status == "FAIL"
+
+    assert "MISSING_PARTNER_ID" in {issue.code for issue in results["reports"].issues}
+
+    for stage in ("submissions", "revision_chains", "observations"):
+        assert results[stage].status == "SKIPPED"
+        assert results[stage].reason == "Rapports non valides."
+
+
+def test_record_with_all_empty_fields_is_rejected(
+    project_root: Path,
+) -> None:
+    """Rejette une ligne CSV dont tous les champs sont vides."""
+
+    path = project_root / "data/raw/reports.csv"
+    content = path.read_text(encoding="utf-8")
+
+    original = "RPT_001,PARTNER_001,2025-03"
+    assert content.count(original) == 1
+
+    path.write_text(
+        content.replace(original, ",,", 1),
+        encoding="utf-8",
+    )
+
+    results = run_validation(project_root)
+
+    assert results["references"].status == "PASS"
+    assert results["reports"].status == "FAIL"
+
+    issue_codes = {issue.code for issue in results["reports"].issues}
+
+    assert {
+        "MISSING_REPORT_ID",
+        "MISSING_PARTNER_ID",
+        "INVALID_PERIOD",
+    } <= issue_codes
+
+    for stage in ("submissions", "revision_chains", "observations"):
+        assert results[stage].status == "SKIPPED"
+        assert results[stage].reason == "Rapports non valides."
