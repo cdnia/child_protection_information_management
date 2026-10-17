@@ -142,3 +142,24 @@ def test_existing_synthetic_references_are_valid() -> None:
     issues = validate_reference_tables(references)
 
     assert all(not table_issues for table_issues in issues.values()), issues
+
+
+def test_rejects_unsupported_area_type() -> None:
+    """Rejette un type de zone non défini dans le prototype."""
+
+    references = make_references()
+    references["areas"][0]["area_type"] = "UNKNOWN_TYPE"
+
+    assert "INVALID_AREA_TYPE" in issue_codes(references, "areas")
+
+
+def test_rejects_unsupported_aggregation_method() -> None:
+    """Rejette une méthode d'agrégation non autorisée."""
+
+    references = make_references()
+    references["indicators"][0]["aggregation_method"] = "AVERAGE"
+
+    assert "INVALID_AGGREGATION_METHOD" in issue_codes(
+        references,
+        "indicators",
+    )

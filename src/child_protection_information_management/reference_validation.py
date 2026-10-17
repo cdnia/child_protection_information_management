@@ -28,6 +28,9 @@ REFERENCE_KEYS: dict[str, tuple[str, ...]] = {
     "activity_indicators": ("activity_code", "indicator_code"),
 }
 
+ALLOWED_AREA_TYPES = frozenset({"SIMULATED_ZONE"})
+ALLOWED_AGGREGATION_METHODS = frozenset({"SUM"})
+
 
 def validate_reference_tables(
     tables: dict[str, list[dict[str, str]]],
@@ -72,6 +75,38 @@ def validate_reference_tables(
                             column,
                             "MISSING_REFERENCE_VALUE",
                             f"Champ obligatoire vide : {column}.",
+                        )
+                    )
+
+            if name == "areas":
+                area_type = record.get("area_type", "")
+
+                if area_type.strip() and area_type not in ALLOWED_AREA_TYPES:
+                    issues[name].append(
+                        ValidationIssue(
+                            record_number,
+                            "area_type",
+                            "INVALID_AREA_TYPE",
+                            f"Type de zone non autorisé : {area_type}.",
+                        )
+                    )
+
+            if name == "indicators":
+                aggregation_method = record.get("aggregation_method", "")
+
+                if (
+                    aggregation_method.strip()
+                    and aggregation_method not in ALLOWED_AGGREGATION_METHODS
+                ):
+                    issues[name].append(
+                        ValidationIssue(
+                            record_number,
+                            "aggregation_method",
+                            "INVALID_AGGREGATION_METHOD",
+                            (
+                                "Méthode d'agrégation non autorisée : "
+                                f"{aggregation_method}."
+                            ),
                         )
                     )
 

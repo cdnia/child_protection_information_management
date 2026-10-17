@@ -813,3 +813,55 @@ def test_record_with_all_empty_fields_is_rejected(
     for stage in ("submissions", "revision_chains", "observations"):
         assert results[stage].status == "SKIPPED"
         assert results[stage].reason == "Rapports non valides."
+
+
+@pytest.mark.parametrize(
+    ("table_name", "field", "invalid_value", "expected_code"),
+    [
+        ("areas", "area_type", "UNKNOWN_TYPE", "INVALID_AREA_TYPE"),
+        (
+            "indicators",
+            "aggregation_method",
+            "AVERAGE",
+            "INVALID_AGGREGATION_METHOD",
+        ),
+    ],
+)
+def test_invalid_reference_value_blocks_pipeline(
+    project_root: Path,
+    table_name: str,
+    field: str,
+    invalid_value: str,
+    expected_code: str,
+) -> None:
+    """Vérifie qu'une valeur non autorisée bloque les étapes dépendantes."""
+
+    path = project_root / "data" / "reference" / f"{table_name}.csv"
+
+    with path.open(newline="", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        columns = reader.fieldnames
+        assert columns is not None
+        rows = list(reader)
+
+    assert rows
+    rows[0][field] = invalid_value
+
+    with path.open("w", newline="", encoding="utf-8") as file:
+        writer = csv.DictWriter(file, fieldnames=columns)
+        writer.writeheader()
+        writer.writerows(rows)
+
+    results = run_validation(project_root)
+
+    assert results["references"].status == "FAIL"
+    assert expected_code in {issue.code for issue in results["references"].issues}
+
+    for stage in (
+        "reports",
+        "submissions",
+        "revision_chains",
+        "observations",
+    ):
+        assert results[stage].status == "SKIPPED"
+        assert results[stage].reason == "Référentiels non valides."

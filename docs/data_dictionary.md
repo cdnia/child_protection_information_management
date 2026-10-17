@@ -197,6 +197,14 @@ La valeur `SIMULATED_ZONE` permet de les identifier explicitement comme des zone
 - Un code géographique ne doit pas être réattribué à une autre zone.
 - Le champ `area_code` utilisé dans `observations` doit correspondre à une zone enregistrée dans ce référentiel.
 
+#### Valeurs autorisées du type de zone
+
+Dans la version actuelle du prototype, `area_type` accepte uniquement la valeur `SIMULATED_ZONE`.
+
+Cette restriction concerne exclusivement le jeu de données fictif. Elle empêche d'introduire silencieusement des catégories géographiques non définies.
+
+L'utilisation de zones administratives réelles nécessitera une extension documentée des valeurs autorisées, accompagnée de nouveaux tests.
+
 #### Références géographiques
 
 L'utilisation de zones administratives réelles nécessitera un référentiel géographique fiable, accompagné de sa source et de sa date de référence.
@@ -288,6 +296,16 @@ Une personne ayant participé à plusieurs séances peut être comptée plusieur
 - Les valeurs des indicateurs définis ici doivent être des entiers non négatifs.
 - La méthode d'agrégation doit appartenir aux méthodes autorisées.
 - La méthode `SUM` correspond à l'addition des valeurs, lorsque les données concernées peuvent être additionnées sans double comptage.
+
+#### Méthodes d'agrégation autorisées
+
+Dans la version actuelle du prototype, `aggregation_method` accepte uniquement la valeur `SUM`.
+
+Les deux indicateurs définis représentent des dénombrements additifs, sous réserve du respect des règles de consolidation.
+
+La méthode `SUM` ne doit pas entraîner l'addition de plusieurs révisions du même rapport. Seules les observations issues des soumissions approuvées retenues peuvent être consolidées.
+
+Toute nouvelle méthode d'agrégation devra être définie, documentée et testée avant son utilisation.
 
 #### Agrégation et interprétation des résultats
 
