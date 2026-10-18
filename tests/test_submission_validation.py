@@ -7,6 +7,7 @@ import pytest
 from child_protection_information_management.csv_io import read_csv
 from child_protection_information_management.submission_validation import (
     validate_revision_chains,
+    validate_submission_periods,
     validate_submissions,
 )
 
@@ -222,3 +223,79 @@ def test_synthetic_revision_chains_are_valid() -> None:
     )
 
     assert validate_revision_chains(submissions) == []
+
+
+@pytest.mark.parametrize(
+    ("reporting_period", "submitted_at", "expected_codes"),
+    [
+        (
+            "2025-03",
+            "2025-02-28T23:59:59Z",
+            {"SUBMISSION_BEFORE_REPORT_PERIOD"},
+        ),
+        ("2025-03", "2025-03-01T00:00:00Z", set()),
+        ("2025-03", "2025-03-01T00:00:01Z", set()),
+        ("2025-03", "2025-03-31T23:59:59Z", set()),
+        ("2025-03", "2025-04-03T09:00:00Z", set()),
+        (
+            "2025-01",
+            "2024-12-31T23:59:59Z",
+            {"SUBMISSION_BEFORE_REPORT_PERIOD"},
+        ),
+        (
+            "2025-12",
+            "2025-11-30T23:59:59Z",
+            {"SUBMISSION_BEFORE_REPORT_PERIOD"},
+        ),
+        ("2025-12", "2026-01-01T00:00:00Z", set()),
+    ],
+)
+def test_submission_period_boundaries(
+    reporting_period: str,
+    submitted_at: str,
+    expected_codes: set[str],
+) -> None:
+    """Vérifie les limites mensuelles et les changements d'année."""
+
+    submission = make_submission(submitted_at=submitted_at)
+    reports = [
+        {
+            "report_id": "RPT_001",
+            "reporting_period": reporting_period,
+        }
+    ]
+
+    issues = validate_submission_periods([submission], reports)
+
+    assert {issue.code for issue in issues} == expected_codes
+
+    if expected_codes:
+        assert len(issues) == 1
+        assert issues[0].record_number == 1
+        assert issues[0].field == "submitted_at"
+
+
+def test_submission_period_uses_matching_report() -> None:
+    """Compare chaque soumission à son propre rapport."""
+
+    submission = make_submission(
+        report_id="RPT_002",
+        submitted_at="2025-02-01T09:00:00Z",
+    )
+    reports = [
+        {
+            "report_id": "RPT_001",
+            "reporting_period": "2025-01",
+        },
+        {
+            "report_id": "RPT_002",
+            "reporting_period": "2025-03",
+        },
+    ]
+
+    issues = validate_submission_periods([submission], reports)
+
+    assert len(issues) == 1
+    assert issues[0].code == "SUBMISSION_BEFORE_REPORT_PERIOD"
+    assert issues[0].record_number == 1
+    assert issues[0].field == "submitted_at"

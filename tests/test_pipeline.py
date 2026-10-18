@@ -913,3 +913,41 @@ def test_incorrect_indicator_unit_blocks_pipeline(
     ):
         assert results[stage].status == "SKIPPED"
         assert results[stage].reason == "Référentiels non valides."
+
+
+@pytest.mark.parametrize(
+    ("submitted_at", "expected_status"),
+    [
+        ("2025-02-28T23:59:59Z", "FAIL"),
+        ("2025-03-01T00:00:00Z", "PASS"),
+    ],
+)
+def test_submission_period_controls_pipeline(
+    project_root: Path,
+    submitted_at: str,
+    expected_status: str,
+) -> None:
+    """Vérifie le contrôle temporel et le blocage des dépendances."""
+
+    change_submission(
+        project_root,
+        "SUB_001,RPT_001,1,,2025-04-03T09:00:00Z",
+        f"SUB_001,RPT_001,1,,{submitted_at}",
+    )
+
+    results = run_validation(project_root)
+
+    assert results["references"].status == "PASS"
+    assert results["reports"].status == "PASS"
+    assert results["submissions"].status == expected_status
+
+    if expected_status == "FAIL":
+        assert "SUBMISSION_BEFORE_REPORT_PERIOD" in {
+            issue.code for issue in results["submissions"].issues
+        }
+
+        for stage in ("revision_chains", "observations"):
+            assert results[stage].status == "SKIPPED"
+            assert results[stage].reason == "Soumissions non valides."
+    else:
+        assert all(result.status == "PASS" for result in results.values())

@@ -94,6 +94,26 @@ Les états suivants seront utilisés :
 
 Les transmissions précédentes sont conservées afin de pouvoir retracer les corrections apportées aux rapports.
 
+#### Cohérence temporelle avec la période de reporting
+
+Chaque soumission doit être associée à un rapport dont la période de reporting est valide.
+
+Dans le scénario actuel, `reporting_period` désigne un mois calendaire et `submitted_at` représente la date et l'heure de réception en UTC.
+
+Une soumission ne doit pas être reçue avant le premier instant du mois auquel son rapport se rapporte.
+
+Par exemple, pour `reporting_period = 2025-03`, la première date de réception autorisée est `2025-03-01T00:00:00Z`.
+
+Une soumission reçue pendant le mois de reporting reste autorisée par ce contrôle. Celui-ci ne garantit pas que le rapport soit complet ou définitif.
+
+Les soumissions reçues après la fin du mois restent autorisées, y compris lorsqu'il s'agit de corrections tardives.
+
+Aucune date limite de transmission n'est imposée dans cette version du prototype.
+
+Les révisions doivent toujours respecter leur ordre chronologique, indépendamment de cette règle.
+
+Ce contrôle croisé entre `reports` et `submissions` est exécuté par l'orchestrateur après validation des rapports et des champs de base des soumissions, avant la vérification des chaînes de révision.
+
 ### `observations` — Observations
 
 La table `observations` contient les résultats déclarés dans les rapports des partenaires.

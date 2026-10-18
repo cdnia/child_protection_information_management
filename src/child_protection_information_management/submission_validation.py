@@ -128,6 +128,45 @@ def validate_submissions(
     return issues
 
 
+def validate_submission_periods(
+    submissions: list[dict[str, str]],
+    reports: list[dict[str, str]],
+) -> list[ValidationIssue]:
+    """Contrôle les dates de réception après validation des données de base."""
+
+    periods_by_report = {
+        report["report_id"]: report["reporting_period"] for report in reports
+    }
+    issues: list[ValidationIssue] = []
+
+    for record_number, submission in enumerate(submissions, start=1):
+        period = periods_by_report[submission["report_id"]]
+
+        period_start = datetime.strptime(
+            f"{period}-01",
+            "%Y-%m-%d",
+        )
+        submitted_at = datetime.strptime(
+            submission["submitted_at"],
+            "%Y-%m-%dT%H:%M:%SZ",
+        )
+
+        if submitted_at < period_start:
+            issues.append(
+                ValidationIssue(
+                    record_number,
+                    "submitted_at",
+                    "SUBMISSION_BEFORE_REPORT_PERIOD",
+                    (
+                        f"Soumission {submission['submission_id']} reçue "
+                        f"avant le début de la période {period}."
+                    ),
+                )
+            )
+
+    return issues
+
+
 def validate_revision_chains(
     submissions: list[dict[str, str]],
 ) -> list[ValidationIssue]:

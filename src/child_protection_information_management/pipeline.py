@@ -8,7 +8,11 @@ from typing import Literal
 from .csv_io import read_csv
 from .observation_validation import validate_observations
 from .reference_validation import REFERENCE_SCHEMAS, validate_reference_tables
-from .submission_validation import validate_revision_chains, validate_submissions
+from .submission_validation import (
+    validate_revision_chains,
+    validate_submission_periods,
+    validate_submissions,
+)
 from .validation import ValidationIssue, validate_reports
 
 StageStatus = Literal["PASS", "FAIL", "SKIPPED"]
@@ -197,8 +201,20 @@ def run_validation(project_root: Path) -> dict[str, StageResult]:
                     ),
                 ),
             )
+
         else:
-            results["submissions"] = StageResult("PASS")
+            period_issues = validate_submission_periods(
+                submissions,
+                reports,
+            )
+
+            if period_issues:
+                results["submissions"] = StageResult(
+                    "FAIL",
+                    issues=tuple(period_issues),
+                )
+            else:
+                results["submissions"] = StageResult("PASS")
 
     if results["submissions"].status == "FAIL":
         for stage in STAGES[3:]:
