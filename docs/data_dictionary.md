@@ -523,6 +523,39 @@ Les observations des anciennes révisions resteront conservées, mais elles ne s
 
 Si une correction est encore en attente d'approbation, la dernière révision approuvée pourra rester utilisée, avec un signalement indiquant qu'une correction est en cours d'examen.
 
+### Consolidation actuellement implémentée
+
+La fonction `consolidate_observations()` regroupe en mémoire les observations issues des dernières soumissions approuvées retenues pour chaque rapport.
+
+La sélection est effectuée par `select_latest_approved_submissions()`. Les anciennes révisions approuvées et les soumissions non approuvées ne contribuent pas aux totaux.
+
+Les observations retenues sont regroupées selon quatre dimensions :
+
+- `reporting_period` : période mensuelle du rapport.
+- `area_code` : zone géographique.
+- `activity_code` : activité déclarée.
+- `indicator_code` : indicateur mesuré.
+
+Les valeurs sont additionnées uniquement lorsque ces quatre dimensions sont identiques. Les indicateurs du prototype utilisent la méthode d'agrégation `SUM`.
+
+Une valeur explicitement déclarée égale à `0` est conservée dans les résultats. Un rapport sans soumission approuvée est exclu. Si aucune soumission n'est approuvée, la fonction retourne une liste vide, ce qui ne doit pas être interprété comme un total égal à zéro.
+
+Sur le jeu de données synthétiques de mars 2025, les tests attendent 12 lignes de résultats consolidés, totalisant 28 séances et 652 participations. Ces chiffres ne représentent pas des activités humanitaires réelles.
+
+Les participations ne constituent pas un dénombrement de bénéficiaires uniques.
+
+La consolidation évite de compter plusieurs révisions d'un même rapport, mais elle ne détecte pas automatiquement les activités réelles éventuellement déclarées par plusieurs partenaires.
+
+La fonction `consolidate_observations()` suppose que les données reçues ont déjà été validées. Elle reste indépendante et n'exécute pas elle-même les contrôles de qualité.
+
+Le parcours `run_consolidation(project_root)` appelle d'abord `run_validation()`. Si une étape échoue ou si toutes les étapes ne sont pas validées, la consolidation est refusée avec une exception `ValueError`.
+
+Lorsque les cinq étapes ont le statut `PASS`, le parcours relit `reports.csv`, `submissions.csv` et `observations.csv`, puis appelle `consolidate_observations()`.
+
+Cette intégration garantit l'ordre des opérations dans le parcours actuel, mais pas leur atomicité. Les fichiers pourraient être modifiés entre leur validation et leur seconde lecture. Une utilisation concurrente nécessiterait un instantané cohérent des données ou un autre mécanisme garantissant leur stabilité.
+
+Les données sources ne sont pas modifiées par le calcul. Les résultats consolidés sont actuellement retournés en mémoire, sans export automatique.
+
 ### Vérification des agrégations
 
 Avant de produire un total, le système devra vérifier que les observations sélectionnées :

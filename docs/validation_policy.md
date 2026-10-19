@@ -67,13 +67,21 @@ Un contrôle dépendant n'est pas exécuté lorsque ses données préalables son
 
 Un résultat `PASS` ne signifie pas que toutes les règles métier possibles ont été vérifiées.
 
+La sélection des dernières soumissions approuvées et la consolidation par période, zone, activité et indicateur sont implémentées dans des fonctions distinctes.
+
+Le parcours `run_consolidation()` exécute les cinq étapes de validation avant toute consolidation. Un statut `FAIL` ou `SKIPPED` empêche la production de résultats par ce parcours.
+
+La fonction autonome `consolidate_observations()` ne réalise pas ces contrôles et doit recevoir des données préalablement validées.
+
 Le prototype ne garantit pas encore :
 
 - La réception des déclarations de tous les partenaires attendus.
 - L'application complète des valeurs autorisées pour certains champs de référence.
 - La vérification de toutes les contraintes temporelles entre tables.
 - La production d'un rapport de qualité avec niveaux de gravité.
-- La sélection et la consolidation des seules révisions approuvées.
+- La protection contre les modifications des fichiers entre leur validation et leur relecture pour la consolidation.
+- La détection des éventuels doubles comptages d'activités réelles entre partenaires.
+- Le signalement automatisé des corrections en attente lorsqu'une révision approuvée antérieure est retenue.
 
 Ces fonctionnalités nécessitent des développements et des tests supplémentaires.
 
