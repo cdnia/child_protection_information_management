@@ -267,3 +267,251 @@ def test_cli_does_not_modify_source_csv(
 
     assert result.returncode == 0
     assert after == before
+
+
+def test_cli_consolidate_help() -> None:
+    """La sous-commande présente sa propre aide."""
+
+    result = run_cli("consolidate", "--help")
+
+    assert result.returncode == 0
+    assert "consolidate" in result.stdout
+    assert "--project-root" in result.stdout
+    assert result.stderr == ""
+
+
+def test_cli_consolidate_valid_dataset(dataset_root: Path) -> None:
+    """La CLI restitue les résultats synthétiques attendus."""
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+
+    lines = result.stdout.splitlines()
+
+    assert lines[:2] == [
+        "Lignes consolidées : 12",
+        "Période | Zone | Activité | Indicateur | Total",
+    ]
+
+    rows = [line.split(" | ") for line in lines[2:]]
+
+    assert len(rows) == 12
+    assert all(len(row) == 5 for row in rows)
+    assert all(row[0] == "2025-03" for row in rows)
+
+    assert rows == sorted(rows, key=lambda row: tuple(row[:4]))
+
+    assert sum(int(row[4]) for row in rows if row[3] == "IND_SESSIONS_HELD") == 28
+
+    assert sum(int(row[4]) for row in rows if row[3] == "IND_PARTICIPATIONS") == 652
+
+
+def test_cli_consolidate_uses_current_directory(
+    dataset_root: Path,
+) -> None:
+    """La racine par défaut correspond au répertoire courant."""
+
+    result = run_cli("consolidate", cwd=dataset_root)
+
+    assert result.returncode == 0
+    assert "Lignes consolidées : 12" in result.stdout
+    assert result.stderr == ""
+
+
+def test_cli_consolidate_explicit_root_from_another_directory(
+    dataset_root: Path,
+    tmp_path: Path,
+) -> None:
+    """Une racine explicite fonctionne hors du dossier des données."""
+
+    external_directory = tmp_path / "external"
+    external_directory.mkdir()
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+        cwd=external_directory,
+    )
+
+    assert result.returncode == 0
+    assert "Lignes consolidées : 12" in result.stdout
+    assert result.stderr == ""
+
+
+@pytest.mark.parametrize(
+    ("relative_path", "original", "replacement", "expected_code"),
+    [
+        (
+            "data/reference/areas.csv",
+            "SIMULATED_ZONE",
+            "UNKNOWN_TYPE",
+            "INVALID_AREA_TYPE",
+        ),
+        (
+            "data/raw/reports.csv",
+            "PARTNER_001",
+            "PARTNER_UNKNOWN",
+            "UNKNOWN_PARTNER",
+        ),
+        (
+            "data/raw/observations.csv",
+            "OBS_001,SUB_001,ZONE_A,",
+            "OBS_001,SUB_UNKNOWN,ZONE_A,",
+            "UNKNOWN_SUBMISSION",
+        ),
+    ],
+)
+def test_cli_consolidate_rejects_invalid_data(
+    dataset_root: Path,
+    relative_path: str,
+    original: str,
+    replacement: str,
+    expected_code: str,
+) -> None:
+    """La CLI refuse un lot invalide sans produire de résultats."""
+
+    path = dataset_root / relative_path
+    content = path.read_text(encoding="utf-8")
+
+    assert original in content
+
+    path.write_text(
+        content.replace(original, replacement, 1),
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "Consolidation refusée" in result.stderr
+    assert expected_code in result.stderr
+
+
+def test_cli_consolidate_missing_observations(
+    dataset_root: Path,
+) -> None:
+    """Un fichier d'observations manquant bloque la consolidation."""
+
+    path = dataset_root / "data" / "raw" / "observations.csv"
+    path.unlink()
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "OBSERVATION_READ_ERROR" in result.stderr
+
+
+def test_cli_consolidate_without_approvals(
+    dataset_root: Path,
+) -> None:
+    """Un lot valide sans approbation ne produit aucun résultat."""
+
+    path = dataset_root / "data" / "raw" / "submissions.csv"
+    content = path.read_text(encoding="utf-8")
+
+    assert content.count("APPROVED") == 4
+
+    path.write_text(
+        content.replace("APPROVED", "REJECTED"),
+        encoding="utf-8",
+    )
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert result.stdout.splitlines() == [
+        "Lignes consolidées : 0",
+        "Aucun résultat consolidé pour ce lot validé.",
+    ]
+
+
+def test_cli_consolidate_unknown_argument() -> None:
+    """Une option inconnue doit être rejetée par argparse."""
+
+    result = run_cli("consolidate", "--unknown-option")
+
+    assert result.returncode == 2
+    assert "unrecognized arguments" in result.stderr
+
+
+def test_cli_consolidate_nonexistent_project_root(
+    tmp_path: Path,
+) -> None:
+    """Une racine inexistante entraîne un refus explicite."""
+
+    missing_root = tmp_path / "missing-project"
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(missing_root),
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "REFERENCE_READ_ERROR" in result.stderr
+
+
+def test_cli_consolidate_does_not_modify_csv(
+    dataset_root: Path,
+) -> None:
+    """La consolidation ne modifie aucun CSV source."""
+
+    paths = sorted((dataset_root / "data").rglob("*.csv"))
+
+    assert len(paths) == 8
+
+    before = {path: path.read_bytes() for path in paths}
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+    )
+
+    after = {path: path.read_bytes() for path in paths}
+
+    assert result.returncode == 0
+    assert after == before
+
+
+def test_cli_consolidate_output_is_deterministic(
+    dataset_root: Path,
+) -> None:
+    """Deux exécutions sur les mêmes données produisent la même sortie."""
+
+    arguments = (
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+    )
+
+    first = run_cli(*arguments)
+    second = run_cli(*arguments)
+
+    assert first.returncode == 0
+    assert second.returncode == 0
+    assert first.stdout == second.stdout
+    assert first.stderr == second.stderr == ""
