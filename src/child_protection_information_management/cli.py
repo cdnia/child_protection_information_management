@@ -6,6 +6,7 @@ import sys
 from collections.abc import Sequence
 from pathlib import Path
 
+from .csv_export import write_consolidated_csv
 from .pipeline import STAGES, run_validation
 from .workflow import run_consolidation
 
@@ -41,16 +42,36 @@ def _run_validate(project_root: Path) -> int:
     return 1
 
 
-def _run_consolidate(project_root: Path) -> int:
-    """Valide le lot et affiche les résultats sans écrire de fichier."""
+def _run_consolidate(
+    project_root: Path,
+    output_path: Path | None = None,
+) -> int:
+    """Valide et consolide le lot, puis affiche ou exporte les résultats."""
+
+    written_path: Path | None = None
 
     try:
         results = run_consolidation(project_root)
+
+        if output_path is not None:
+            written_path = write_consolidated_csv(
+                project_root,
+                output_path,
+                results,
+            )
+
     except (OSError, UnicodeError, csv.Error, ValueError) as error:
         print(f"Erreur : {error}", file=sys.stderr)
         return 1
 
     print(f"Lignes consolidées : {len(results)}")
+
+    if written_path is not None:
+        if not results:
+            print("Aucun résultat consolidé pour ce lot validé.")
+
+        print(f"Export CSV créé : {written_path}")
+        return 0
 
     if not results:
         print("Aucun résultat consolidé pour ce lot validé.")
@@ -88,7 +109,7 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     consolidate_parser = subparsers.add_parser(
         "consolidate",
-        help="Valider puis afficher les résultats consolidés.",
+        help="Valider, afficher ou exporter les résultats consolidés.",
     )
 
     for command_parser in (validate_parser, consolidate_parser):
@@ -100,12 +121,19 @@ def main(argv: Sequence[str] | None = None) -> int:
             help="Répertoire racine contenant le dossier data.",
         )
 
+    consolidate_parser.add_argument(
+        "--output",
+        type=Path,
+        metavar="PATH",
+        help="Créer un fichier CSV sans écraser une destination existante.",
+    )
+
     args = parser.parse_args(argv)
 
     if args.command == "validate":
         return _run_validate(args.project_root)
 
     if args.command == "consolidate":
-        return _run_consolidate(args.project_root)
+        return _run_consolidate(args.project_root, args.output)
 
     parser.error(f"Commande inconnue : {args.command}")

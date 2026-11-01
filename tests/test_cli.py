@@ -515,3 +515,253 @@ def test_cli_consolidate_output_is_deterministic(
     assert second.returncode == 0
     assert first.stdout == second.stdout
     assert first.stderr == second.stderr == ""
+
+
+def test_cli_consolidate_output_help() -> None:
+    """L'option d'export figure dans l'aide de consolidate."""
+
+    result = run_cli("consolidate", "--help")
+
+    assert result.returncode == 0
+    assert "--output" in result.stdout
+    assert "--project-root" in result.stdout
+    assert result.stderr == ""
+
+
+def test_cli_consolidate_writes_csv(
+    dataset_root: Path,
+    tmp_path: Path,
+) -> None:
+    """L'export CLI produit les 12 groupes sans modifier les sources."""
+
+    output_directory = tmp_path / "exports"
+    output_directory.mkdir()
+
+    output_path = output_directory / "consolidated.csv"
+    source_paths = sorted((dataset_root / "data").rglob("*.csv"))
+
+    assert len(source_paths) == 8
+
+    before = {path: path.read_bytes() for path in source_paths}
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+        "--output",
+        str(output_path),
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert result.stdout.splitlines() == [
+        "Lignes consolidées : 12",
+        f"Export CSV créé : {output_path}",
+    ]
+
+    lines = output_path.read_text(encoding="utf-8").splitlines()
+
+    assert lines[0] == (
+        "reporting_period,area_code,activity_code,indicator_code,total_value"
+    )
+    assert len(lines) == 13
+
+    rows = [line.split(",") for line in lines[1:]]
+
+    assert all(len(row) == 5 for row in rows)
+    assert all(row[0] == "2025-03" for row in rows)
+    assert rows == sorted(rows, key=lambda row: tuple(row[:4]))
+
+    assert sum(int(row[4]) for row in rows if row[3] == "IND_SESSIONS_HELD") == 28
+
+    assert sum(int(row[4]) for row in rows if row[3] == "IND_PARTICIPATIONS") == 652
+
+    after = {path: path.read_bytes() for path in source_paths}
+
+    assert after == before
+    assert list(output_directory.glob(".cpim-export-*.tmp")) == []
+
+
+def test_cli_consolidate_refuses_existing_output(
+    dataset_root: Path,
+    tmp_path: Path,
+) -> None:
+    """Une destination existante reste intacte."""
+
+    output_path = tmp_path / "existing.csv"
+    output_path.write_bytes(b"DO NOT OVERWRITE\n")
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+        "--output",
+        str(output_path),
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "Destination déjà existante" in result.stderr
+    assert output_path.read_bytes() == b"DO NOT OVERWRITE\n"
+    assert list(tmp_path.glob(".cpim-export-*.tmp")) == []
+
+
+def test_cli_consolidate_invalid_data_creates_no_export(
+    dataset_root: Path,
+    tmp_path: Path,
+) -> None:
+    """Un échec de validation interdit la création du CSV."""
+
+    path = dataset_root / "data" / "raw" / "observations.csv"
+    content = path.read_text(encoding="utf-8")
+
+    original = "OBS_001,SUB_001,ZONE_A,"
+    replacement = "OBS_001,SUB_UNKNOWN,ZONE_A,"
+
+    assert content.count(original) == 1
+
+    path.write_text(
+        content.replace(original, replacement, 1),
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "invalid-export.csv"
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+        "--output",
+        str(output_path),
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "UNKNOWN_SUBMISSION" in result.stderr
+    assert not output_path.exists()
+
+
+def test_cli_consolidate_exports_header_without_approvals(
+    dataset_root: Path,
+    tmp_path: Path,
+) -> None:
+    """Aucune approbation produit uniquement un en-tête CSV."""
+
+    path = dataset_root / "data" / "raw" / "submissions.csv"
+    content = path.read_text(encoding="utf-8")
+
+    assert content.count("APPROVED") == 4
+
+    path.write_text(
+        content.replace("APPROVED", "REJECTED"),
+        encoding="utf-8",
+    )
+
+    output_path = tmp_path / "no-approvals.csv"
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+        "--output",
+        str(output_path),
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert result.stdout.splitlines() == [
+        "Lignes consolidées : 0",
+        "Aucun résultat consolidé pour ce lot validé.",
+        f"Export CSV créé : {output_path}",
+    ]
+
+    assert output_path.read_bytes() == (
+        b"reporting_period,area_code,activity_code,indicator_code,total_value\n"
+    )
+
+
+def test_cli_consolidate_refuses_source_destination(
+    dataset_root: Path,
+) -> None:
+    """L'export ne doit pas remplacer un CSV source."""
+
+    source_path = dataset_root / "data" / "raw" / "reports.csv"
+    original_bytes = source_path.read_bytes()
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+        "--output",
+        str(source_path),
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "données sources" in result.stderr
+    assert source_path.read_bytes() == original_bytes
+
+
+def test_cli_consolidate_refuses_missing_output_directory(
+    dataset_root: Path,
+    tmp_path: Path,
+) -> None:
+    """L'export ne crée pas implicitement de répertoire."""
+
+    output_path = tmp_path / "missing" / "consolidated.csv"
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+        "--output",
+        str(output_path),
+    )
+
+    assert result.returncode == 1
+    assert result.stdout == ""
+    assert "Dossier de sortie absent" in result.stderr
+    assert not output_path.parent.exists()
+    assert not output_path.exists()
+
+
+def test_cli_consolidate_relative_output_uses_current_directory(
+    dataset_root: Path,
+    tmp_path: Path,
+) -> None:
+    """Le chemin relatif d'export est résolu depuis le CWD."""
+
+    external_directory = tmp_path / "external"
+    output_directory = external_directory / "exports"
+
+    output_directory.mkdir(parents=True)
+
+    relative_output = Path("exports") / "consolidated.csv"
+
+    result = run_cli(
+        "consolidate",
+        "--project-root",
+        str(dataset_root),
+        "--output",
+        str(relative_output),
+        cwd=external_directory,
+    )
+
+    assert result.returncode == 0
+    assert result.stderr == ""
+    assert result.stdout.splitlines() == [
+        "Lignes consolidées : 12",
+        f"Export CSV créé : {relative_output}",
+    ]
+
+    assert (external_directory / relative_output).is_file()
+    assert not (dataset_root / relative_output).exists()
+
+
+def test_cli_validate_rejects_output_option() -> None:
+    """L'option --output n'appartient pas à validate."""
+
+    result = run_cli("validate", "--output", "unexpected.csv")
+
+    assert result.returncode == 2
+    assert "unrecognized arguments" in result.stderr
